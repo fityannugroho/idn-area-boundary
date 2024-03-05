@@ -1,4 +1,12 @@
-import { pgTable, varchar } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  integer,
+  pgEnum,
+  pgTable,
+  primaryKey,
+  timestamp,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
 export const provinces = pgTable('provinces', {
   code: varchar('code', { length: 2 }).primaryKey(),
@@ -28,3 +36,37 @@ export const villages = pgTable('villages', {
     () => districts.code,
   ),
 });
+
+export const areaEnum = pgEnum('area', [
+  'provinces',
+  'regencies',
+  'districts',
+  'villages',
+]);
+
+export const boundaries = pgTable(
+  'boundaries',
+  {
+    FID: varchar('fid').notNull(),
+    area: areaEnum('area').notNull(),
+    KODE_PROV: varchar('p_code'),
+    PROVINSI: varchar('p_name'),
+    KODE_KK: varchar('r_code'),
+    KAB_KOTA: varchar('r_name'),
+    KODE_KEC: varchar('d_code'),
+    KECAMATAN: varchar('d_name'),
+    KODE_KD: varchar('v_code'),
+    NAME: varchar('v_name'),
+    TIPE_KD: integer('v_type_num'),
+    JENIS_KD: varchar('v_type'),
+    sync: boolean('sync').notNull().default(false),
+    syncCode: varchar('sync_code'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    syncedAt: timestamp('synced_at'),
+  },
+  (table) => {
+    return {
+      pk: primaryKey({ name: 'id', columns: [table.FID, table.area] }),
+    };
+  },
+);

@@ -19,6 +19,7 @@
   "devDependencies": {
     "@types/bun": "latest",
     "@types/pg": "^8.11.2",
+    "@types/shapefile": "^0.6.4",
     "drizzle-kit": "^0.20.14",
     "prettier": "^3.2.5"
   },
@@ -29,6 +30,7 @@
     "drizzle-orm": "^0.29.4",
     "idn-area-data": "^3.1.0",
     "pg": "^8.11.3",
+    "shapefile": "^0.6.6",
     "zod": "^3.22.4"
   }
 }
