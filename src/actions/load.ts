@@ -1,10 +1,12 @@
 import { db } from '@/db/client';
 import { boundaries } from '@/db/schema';
-import { type Areas } from '@/validation';
+import { validateArea, type Areas } from '@/validation';
 import { eq } from 'drizzle-orm';
 import * as shapefile from 'shapefile';
 
 export const loadBoundaries = async (area: Areas) => {
+  validateArea(area);
+
   const pathToRawData = Bun.resolveSync(
     `../../raw-data/${area}/${area}.shp`,
     import.meta.dir,
