@@ -31,6 +31,7 @@ program
 try {
   await program.parseAsync();
   console.log('Done!');
+  process.exit(0);
 } catch (error) {
   if (error instanceof Error) {
     console.error(error.message);

@@ -1,5 +1,12 @@
 import { db } from '@/db/client';
-import { boundaries, provinces, regencies } from '@/db/schema';
+import {
+  boundaries,
+  districts,
+  provinces,
+  regencies,
+  villages,
+} from '@/db/schema';
+import { initProgressBar } from '@/utils/cli';
 import { validateArea, type Areas, validateSchema } from '@/validation';
 import { and, eq, ilike, or } from 'drizzle-orm';
 import { z } from 'zod';
@@ -36,12 +43,24 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
   }
 
   console.log(
-    `${options?.force ? 'Force syncing' : 'Syncing'} ${unsyncAreas.length} ${area} boundaries`,
+    `${options?.force ? 'Force syncing' : 'Syncing'} ${unsyncAreas.length} ${area} boundaries\n(Press Ctrl+C to abort)`,
   );
+
+  const progressBar = initProgressBar({ total: unsyncAreas.length });
+  const abortController = new AbortController();
+
+  process.on('SIGINT', () => {
+    progressBar.stop();
+    abortController.abort();
+  });
 
   let syncCount = 0;
 
   for (const unsyncArea of unsyncAreas) {
+    if (abortController.signal.aborted) {
+      break;
+    }
+
     await db.transaction(async (tx) => {
       // Find the area data
       let syncCode;
@@ -49,7 +68,7 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
       switch (area) {
         case 'provinces': {
           const matchProvince = await tx.query.provinces.findFirst({
-            where: (provinces, { eq, ilike }) =>
+            where: (provinces, { ilike }) =>
               ilike(provinces.name, `${unsyncArea.PROVINSI}%`),
           });
 
@@ -89,9 +108,67 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
           break;
         }
         case 'districts': {
+          const matchDistricts = await tx
+            .select()
+            .from(districts)
+            .innerJoin(regencies, eq(districts.regencyCode, regencies.code))
+            .innerJoin(provinces, eq(regencies.provinceCode, provinces.code))
+            .where(
+              or(
+                ilike(districts.code, unsyncArea.KODE_KEC as string),
+                and(
+                  ilike(provinces.name, `%${unsyncArea.PROVINSI}%`),
+                  ilike(regencies.name, `%${unsyncArea.KAB_KOTA}%`),
+                  ilike(districts.name, `%${unsyncArea.KECAMATAN}%`),
+                ),
+              ),
+            );
+
+          syncCode = (
+            matchDistricts.length > 1
+              ? matchDistricts.find(
+                  ({ districts }) =>
+                    districts.code === unsyncArea.KODE_KEC ||
+                    districts.name.endsWith(
+                      (unsyncArea.KECAMATAN as string).toUpperCase(),
+                    ),
+                )
+              : matchDistricts[0]
+          )?.districts.code;
+
           break;
         }
         case 'villages': {
+          const matchVillages = await tx
+            .select()
+            .from(villages)
+            .innerJoin(districts, eq(villages.districtCode, districts.code))
+            .innerJoin(regencies, eq(districts.regencyCode, regencies.code))
+            .innerJoin(provinces, eq(regencies.provinceCode, provinces.code))
+            .where(
+              or(
+                ilike(villages.code, unsyncArea.KODE_KD as string),
+                and(
+                  ilike(provinces.name, `%${unsyncArea.PROVINSI}%`),
+                  ilike(regencies.name, `%${unsyncArea.KAB_KOTA}%`),
+                  ilike(districts.name, `%${unsyncArea.KECAMATAN}%`),
+                  ilike(villages.name, `%${unsyncArea.NAME}%`),
+                ),
+              ),
+            );
+
+          syncCode = (
+            matchVillages.length > 1
+              ? matchVillages.find(
+                  ({ villages }) =>
+                    villages.code === unsyncArea.KODE_KD ||
+                    villages.name.endsWith(
+                      (unsyncArea.NAME as string).toUpperCase(),
+                    ),
+                )
+              : matchVillages[0]
+          )?.villages.code;
+
           break;
         }
       }
@@ -114,6 +191,8 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
 
       syncCount += 1;
     });
+
+    progressBar.increment();
   }
 
   console.log(`Synced ${syncCount} ${area} boundaries`);
