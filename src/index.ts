@@ -16,9 +16,10 @@ program.name('idn-area-boundaries').description('Indonesia area boundaries');
 
 program
   .command('load')
+  .description('load boundaries from raw data to the database')
   .argument(
     '<area>',
-    "Either 'provinces', 'regencies', 'districts', or 'villages'",
+    "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
     await loadBoundaries(area);
@@ -26,11 +27,12 @@ program
 
 program
   .command('sync')
+  .description('sync boundaries from raw data with idn-area-data')
   .argument(
     '<area>',
-    "Either 'provinces', 'regencies', 'districts', or 'villages'",
+    "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
-  .option('-f, --force', 'Force sync all boundaries', false)
+  .option('-f, --force', 'force sync all boundaries', false)
   .action(async (area: Areas, options) => {
     await syncBoundaries(area, {
       ...options,
@@ -40,9 +42,10 @@ program
 
 program
   .command('generate')
+  .description('generate boundaries of synced areas to geojson files')
   .argument(
     '<area>',
-    "Either 'provinces', 'regencies', 'districts', or 'villages'",
+    "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
     await generateBoundaries(area);
