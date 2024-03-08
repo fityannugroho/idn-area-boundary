@@ -61,6 +61,8 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
       break;
     }
 
+    progressBar.increment({ syncCount });
+
     // Find the area data
     let syncCode;
 
@@ -189,8 +191,6 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
       );
 
     syncCount += 1;
-
-    progressBar.increment();
   }
 
   console.log(`Synced ${syncCount} ${area} boundaries`);

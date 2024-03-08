@@ -11,7 +11,8 @@ export const initProgressBar = ({ total }: Options) => {
       stream: process.stdout,
       noTTYOutput: true,
       notTTYSchedule: 10_000, // 10 seconds
-      format: '{bar} {percentage}% | {value}/{total} | ETA: {eta_formatted}',
+      format:
+        '{percentage}% {bar} {value}/{total} | ETA: {eta_formatted} | T: {duration_formatted}',
       barsize: 32,
     },
     cliProgress.Presets.shades_classic,
