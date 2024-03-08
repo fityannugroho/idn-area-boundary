@@ -1,0 +1,43 @@
+{
+  "name": "idn-area-boundary",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "NODE_ENV=production bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts",
+    "db:generate": "drizzle-kit generate:pg",
+    "db:push": "drizzle-kit push:pg",
+    "db:pull": "drizzle-kit introspect:pg",
+    "db:rollback": "drizzle-kit drop",
+    "db:check": "drizzle-kit check:pg",
+    "db:studio": "drizzle-kit studio",
+    "db:migrate": "bun src/db/migrate.ts",
+    "db:seed": "bun src/db/seed.ts",
+    "lint": "prettier --check 'src/**/*.{ts,js}'",
+    "lint:fix": "prettier --write 'src/**/*.{ts,js}'"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cli-progress": "^3.11.5",
+    "@types/pg": "^8.11.2",
+    "@types/shapefile": "^0.6.4",
+    "drizzle-kit": "^0.20.14",
+    "prettier": "^3.2.5"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "cli-progress": "^3.12.0",
+    "commander": "^12.0.0",
+    "drizzle-orm": "^0.29.4",
+    "idn-area-data": "^3.1.0",
+    "pg": "^8.11.3",
+    "shapefile": "^0.6.6",
+    "zod": "^3.22.4",
+    "zod-validation-error": "^3.0.3"
+  }
+}
