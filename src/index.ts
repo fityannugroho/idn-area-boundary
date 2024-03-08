@@ -2,6 +2,13 @@ import { Command } from 'commander';
 import { loadBoundaries } from './actions/load';
 import { type Areas } from './validation';
 import { syncBoundaries } from './actions/sync';
+import { generateBoundaries } from './actions/generate';
+
+const abortController = new AbortController();
+
+process.on('SIGINT', () => {
+  abortController.abort();
+});
 
 const program = new Command();
 
@@ -25,7 +32,20 @@ program
   )
   .option('-f, --force', 'Force sync all boundaries', false)
   .action(async (area: Areas, options) => {
-    await syncBoundaries(area, options);
+    await syncBoundaries(area, {
+      ...options,
+      signal: abortController.signal,
+    });
+  });
+
+program
+  .command('generate')
+  .argument(
+    '<area>',
+    "Either 'provinces', 'regencies', 'districts', or 'villages'",
+  )
+  .action(async (area: Areas) => {
+    await generateBoundaries(area);
   });
 
 try {

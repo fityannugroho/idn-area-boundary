@@ -18,7 +18,9 @@ const optionsSchema = z.object({
   force: z.boolean().optional(),
 });
 
-type Options = z.infer<typeof optionsSchema>;
+type Options = z.infer<typeof optionsSchema> & {
+  signal?: AbortSignal;
+};
 
 export const syncBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
@@ -47,17 +49,15 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
   );
 
   const progressBar = initProgressBar({ total: unsyncAreas.length });
-  const abortController = new AbortController();
 
   process.on('SIGINT', () => {
     progressBar.stop();
-    abortController.abort();
   });
 
   let syncCount = 0;
 
   for (const unsyncArea of unsyncAreas) {
-    if (abortController.signal.aborted) {
+    if (options?.signal?.aborted) {
       break;
     }
 
