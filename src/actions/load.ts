@@ -7,10 +7,7 @@ import * as shapefile from 'shapefile';
 export const loadBoundaries = async (area: Areas) => {
   validateArea(area);
 
-  const pathToRawData = Bun.resolveSync(
-    `../../raw-data/${area}/${area}.shp`,
-    import.meta.dir,
-  );
+  const pathToRawData = `raw-data/${area}/${area}.shp`;
 
   // Check if raw data exists
   if (!(await Bun.file(pathToRawData).exists())) {

@@ -18,10 +18,7 @@ type Options = {
 export const generateBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
 
-  const pathToRawData = Bun.resolveSync(
-    `../../raw-data/${area}/${area}.shp`,
-    import.meta.dir,
-  );
+  const pathToRawData = `raw-data/${area}/${area}.shp`;
 
   // Check if raw data exists
   if (!(await Bun.file(pathToRawData).exists())) {
@@ -84,13 +81,8 @@ export const generateBoundaries = async (area: Areas, options?: Options) => {
     if (rowCount === 1 && data) {
       progressBar.increment();
 
-      const destFile = Bun.resolveSync(
-        `../../data/${area}/${data.code}.geojson`,
-        import.meta.dir,
-      );
-
       await Bun.write(
-        destFile,
+        `data/${area}/${data.code}.geojson`,
         JSON.stringify({
           type: feature.value.type,
           properties: {
