@@ -11,12 +11,14 @@ import { validateArea, type Areas, validateSchema } from '@/validation';
 import { and, eq, ilike, or } from 'drizzle-orm';
 import { z } from 'zod';
 
-const optionsSchema = z.object({
-  /**
-   * Force sync all boundaries.
-   */
-  force: z.boolean().optional(),
-});
+const optionsSchema = z
+  .object({
+    /**
+     * Force sync all boundaries.
+     */
+    force: z.boolean().optional(),
+  })
+  .optional();
 
 type Options = z.infer<typeof optionsSchema> & {
   signal?: AbortSignal;
@@ -45,7 +47,7 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
   }
 
   console.log(
-    `${options?.force ? 'Force syncing' : 'Syncing'} ${unsyncAreas.length} ${area} boundaries\n(Press Ctrl+C to abort)`,
+    `${options?.force ? 'Force syncing' : 'Syncing'} ${unsyncAreas.length} ${area} boundaries`,
   );
 
   const progressBar = initProgressBar({ total: unsyncAreas.length });

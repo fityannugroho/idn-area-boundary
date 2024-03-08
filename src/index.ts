@@ -3,6 +3,7 @@ import { loadBoundaries } from './actions/load';
 import { type Areas } from './validation';
 import { syncBoundaries } from './actions/sync';
 import { generateBoundaries } from './actions/generate';
+import { error } from 'console';
 
 const abortController = new AbortController();
 
@@ -16,7 +17,9 @@ program.name('idn-area-boundaries').description('Indonesia area boundaries');
 
 program
   .command('load')
-  .description('load boundaries from raw data to the database')
+  .description(
+    'load boundaries from raw data to the database. Note: this will remove the existing boundaries data including the synced status',
+  )
   .argument(
     '<area>',
     "either 'provinces', 'regencies', 'districts', or 'villages'",
@@ -51,14 +54,21 @@ program
     await generateBoundaries(area);
   });
 
+program.hook('preAction', () => {
+  console.log('Start... (press Ctrl+C to abort)\n');
+});
+
+program.exitOverride();
+
 try {
   await program.parseAsync();
-  console.log('Done!');
-  process.exit(0);
+  console.log('\nDone!');
 } catch (error) {
-  if (error instanceof Error) {
-    console.error(error.message);
+  if (error instanceof Error && error.name !== 'CommanderError') {
+    console.error(`${error.name}: ${error.message}`);
   } else {
     throw error;
   }
 }
+
+process.exit(0);
