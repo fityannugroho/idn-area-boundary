@@ -7,20 +7,30 @@ import {
   villages,
 } from '@/db/schema';
 import { initProgressBar } from '@/utils/cli';
+import env from '@/utils/env';
 import { validateArea, type Areas } from '@/validation';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, sql } from 'drizzle-orm';
+import PQueue from 'p-queue';
 
 type Options = {
   signal?: AbortSignal;
 };
 
+type Task = Parameters<InstanceType<typeof PQueue>['add']>[0];
+
 export const exportBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
 
   const syncedBoundaries = await db
-    .select()
+    .select({ FID: boundaries.FID })
     .from(boundaries)
-    .where(and(eq(boundaries.area, area), eq(boundaries.sync, true)));
+    .where(
+      and(
+        eq(boundaries.area, area),
+        eq(boundaries.sync, true),
+        isNotNull(boundaries.geometry),
+      ),
+    );
 
   if (syncedBoundaries.length === 0) {
     throw new Error(
@@ -30,13 +40,19 @@ export const exportBoundaries = async (area: Areas, options?: Options) => {
 
   console.log(`Exporting ${syncedBoundaries.length} ${area} boundaries...`);
 
+  const queue = new PQueue({ concurrency: env.CONCURRENCY });
   const progressBar = initProgressBar({ total: syncedBoundaries.length });
 
-  process.on('SIGINT', () => {
-    progressBar.stop();
+  queue.on('completed', () => {
+    progressBar.increment();
   });
 
-  let areaTable;
+  let areaTable:
+    | typeof provinces
+    | typeof regencies
+    | typeof districts
+    | typeof villages;
+
   switch (area) {
     case 'provinces':
       areaTable = provinces;
@@ -54,50 +70,77 @@ export const exportBoundaries = async (area: Areas, options?: Options) => {
 
   let successCount = 0;
 
-  for (const boundary of syncedBoundaries) {
-    if (options?.signal?.aborted) {
-      break;
-    }
+  syncedBoundaries.forEach((boundary) => {
+    const task: Task = async ({ signal }) => {
+      if (signal?.aborted) {
+        return;
+      }
 
-    const {
-      rowCount,
-      rows: [data],
-    } = await db.execute(sql`
-      SELECT ${boundaries.FID}, ${areaTable.code}, ${areaTable.name} FROM ${boundaries}
-      INNER JOIN ${areaTable} ON ${areaTable.code} = ${boundaries.syncCode}
-      WHERE ${boundaries.area} = ${area}
-      AND ${boundaries.FID} = ${boundary.FID}
-      AND ${boundaries.syncCode} IS NOT NULL
-    `);
+      const {
+        rowCount,
+        rows: [properties],
+      } = await db.execute(sql`
+        SELECT ${areaTable.code}, ${areaTable.name} FROM ${boundaries}
+        INNER JOIN ${areaTable} ON ${areaTable.code} = ${boundaries.syncCode}
+        WHERE ${boundaries.area} = ${area}
+        AND ${boundaries.FID} = ${boundary.FID}
+        AND ${boundaries.syncCode} IS NOT NULL
+      `);
 
-    if (rowCount === 1 && data) {
-      await Bun.write(
-        `data/${area}/${data.code}.geojson`,
-        JSON.stringify({
-          type: 'Feature',
-          properties: {
-            code: data.code,
-            name: data.name,
-          },
-          geometry: boundary.geometry,
-        }),
-      );
+      if (rowCount === 1 && properties) {
+        const [{ geometry }] = await db
+          .select({ geometry: boundaries.geometry })
+          .from(boundaries)
+          .where(
+            and(eq(boundaries.area, area), eq(boundaries.FID, boundary.FID)),
+          );
 
-      // Update boundaries export timestamp
-      await db
-        .update(boundaries)
-        .set({
-          exportedAt: new Date(),
-        })
-        .where(
-          and(eq(boundaries.area, area), eq(boundaries.FID, boundary.FID)),
+        await Bun.write(
+          `data/${area}/${properties.code}.geojson`,
+          JSON.stringify({
+            type: 'Feature',
+            properties,
+            geometry,
+          }),
         );
 
-      successCount += 1;
-    }
+        // Update boundaries export timestamp
+        await db
+          .update(boundaries)
+          .set({
+            exportedAt: new Date(),
+          })
+          .where(
+            and(eq(boundaries.area, area), eq(boundaries.FID, boundary.FID)),
+          );
 
-    progressBar.increment();
-  }
+        successCount += 1;
+      }
+    };
+
+    queue.add(task, { signal: options?.signal }).catch((error) => {
+      if (!(error instanceof DOMException)) {
+        throw error;
+      }
+    });
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    queue.on('idle', () => {
+      resolve();
+    });
+
+    queue.on('error', (error) => {
+      progressBar.stop();
+
+      // Aborted
+      if (error instanceof DOMException) {
+        resolve();
+      }
+
+      reject(error);
+    });
+  });
 
   console.log(`${successCount} ${area} boundaries exported`);
 };

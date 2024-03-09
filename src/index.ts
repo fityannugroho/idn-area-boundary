@@ -50,7 +50,7 @@ program
     "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
-    await exportBoundaries(area);
+    await exportBoundaries(area, { signal: abortController.signal });
   });
 
 program.hook('preAction', () => {
