@@ -35,6 +35,7 @@
     "commander": "^12.0.0",
     "drizzle-orm": "^0.29.4",
     "idn-area-data": "^3.1.0",
+    "p-queue": "^8.0.1",
     "pg": "^8.11.3",
     "shapefile": "^0.6.6",
     "zod": "^3.22.4",
