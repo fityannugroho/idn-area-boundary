@@ -8,40 +8,29 @@ import {
 } from '@/db/schema';
 import { initProgressBar } from '@/utils/cli';
 import { validateArea, type Areas } from '@/validation';
-import { and, count, eq, sql } from 'drizzle-orm';
-import * as shapefile from 'shapefile';
+import { and, eq, sql } from 'drizzle-orm';
 
 type Options = {
   signal?: AbortSignal;
 };
 
-export const generateBoundaries = async (area: Areas, options?: Options) => {
+export const exportBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
 
-  const pathToRawData = `raw-data/${area}/${area}.shp`;
-
-  // Check if raw data exists
-  if (!(await Bun.file(pathToRawData).exists())) {
-    throw new Error(
-      `Raw data of ${area} does not exist. Please add the raw data first in the data directory`,
-    );
-  }
-
-  const [{ count: syncedBoundariesCount }] = await db
-    .select({ count: count() })
+  const syncedBoundaries = await db
+    .select()
     .from(boundaries)
     .where(and(eq(boundaries.area, area), eq(boundaries.sync, true)));
 
-  if (syncedBoundariesCount === 0) {
+  if (syncedBoundaries.length === 0) {
     throw new Error(
       `No synced boundaries found for ${area}\nRun 'sync ${area}' first`,
     );
   }
 
-  console.log(`Generating boundaries of ${syncedBoundariesCount} ${area}...`);
+  console.log(`Exporting ${syncedBoundaries.length} ${area} boundaries...`);
 
-  const shpSource = await shapefile.open(pathToRawData);
-  const progressBar = initProgressBar({ total: syncedBoundariesCount });
+  const progressBar = initProgressBar({ total: syncedBoundaries.length });
 
   process.on('SIGINT', () => {
     progressBar.stop();
@@ -64,9 +53,12 @@ export const generateBoundaries = async (area: Areas, options?: Options) => {
   }
 
   let successCount = 0;
-  let feature = await shpSource.read();
 
-  while (!feature.done && !options?.signal?.aborted) {
+  for (const boundary of syncedBoundaries) {
+    if (options?.signal?.aborted) {
+      break;
+    }
+
     const {
       rowCount,
       rows: [data],
@@ -74,30 +66,38 @@ export const generateBoundaries = async (area: Areas, options?: Options) => {
       SELECT ${boundaries.FID}, ${areaTable.code}, ${areaTable.name} FROM ${boundaries}
       INNER JOIN ${areaTable} ON ${areaTable.code} = ${boundaries.syncCode}
       WHERE ${boundaries.area} = ${area}
-      AND ${boundaries.FID} = ${feature.value.properties?.FID}
+      AND ${boundaries.FID} = ${boundary.FID}
       AND ${boundaries.syncCode} IS NOT NULL
     `);
 
     if (rowCount === 1 && data) {
-      progressBar.increment();
-
       await Bun.write(
         `data/${area}/${data.code}.geojson`,
         JSON.stringify({
-          type: feature.value.type,
+          type: 'Feature',
           properties: {
             code: data.code,
             name: data.name,
           },
-          geometry: feature.value.geometry,
+          geometry: boundary.geometry,
         }),
       );
+
+      // Update boundaries export timestamp
+      await db
+        .update(boundaries)
+        .set({
+          exportedAt: new Date(),
+        })
+        .where(
+          and(eq(boundaries.area, area), eq(boundaries.FID, boundary.FID)),
+        );
 
       successCount += 1;
     }
 
-    feature = await shpSource.read();
+    progressBar.increment();
   }
 
-  console.log(`${successCount} ${area} boundaries generated`);
+  console.log(`${successCount} ${area} boundaries exported`);
 };
