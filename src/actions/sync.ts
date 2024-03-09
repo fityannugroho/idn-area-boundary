@@ -130,11 +130,12 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
         syncCode = (
           matchDistricts.length > 1
             ? matchDistricts.find(
+                ({ districts }) => districts.code === unsyncArea.KODE_KEC,
+              ) ??
+              matchDistricts.find(
                 ({ districts }) =>
-                  districts.code === unsyncArea.KODE_KEC ||
-                  districts.name
-                    .toUpperCase()
-                    .endsWith((unsyncArea.KECAMATAN as string).toUpperCase()),
+                  districts.name.toUpperCase() ===
+                  unsyncArea.KECAMATAN?.toUpperCase(),
               )
             : matchDistricts[0]
         )?.districts.code;
@@ -163,11 +164,12 @@ export const syncBoundaries = async (area: Areas, options?: Options) => {
         syncCode = (
           matchVillages.length > 1
             ? matchVillages.find(
+                ({ villages }) => villages.code === unsyncArea.KODE_KD,
+              ) ??
+              matchVillages.find(
                 ({ villages }) =>
-                  villages.code === unsyncArea.KODE_KD ||
-                  villages.name
-                    .toUpperCase()
-                    .endsWith((unsyncArea.NAME as string).toUpperCase()),
+                  villages.name.toUpperCase() ===
+                  unsyncArea.NAME?.toUpperCase(),
               )
             : matchVillages[0]
         )?.villages.code;
