@@ -3,8 +3,13 @@ import { boundaries } from '@/db/schema';
 import { validateArea, type Areas } from '@/validation';
 import { and, eq } from 'drizzle-orm';
 import * as shapefile from 'shapefile';
+import { stringify, type GeoJSONGeometry } from 'wellknown';
 
-export const loadBoundaries = async (area: Areas) => {
+type Options = {
+  signal?: AbortSignal;
+};
+
+export const loadBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
 
   const pathToRawData = `raw-data/${area}/${area}.shp`;
@@ -17,9 +22,13 @@ export const loadBoundaries = async (area: Areas) => {
   }
 
   const shpSource = await shapefile.open(pathToRawData);
-
   let feature = await shpSource.read();
+
   while (!feature.done) {
+    if (options?.signal?.aborted) {
+      break;
+    }
+
     const properties = feature.value.properties as {
       FID: string;
       KODE_PROV?: string;
@@ -45,7 +54,7 @@ export const loadBoundaries = async (area: Areas) => {
       // Insert new data
       await db.insert(boundaries).values({
         ...properties,
-        geometry: feature.value.geometry,
+        geometryWkt: stringify(feature.value.geometry as GeoJSONGeometry),
         area,
       });
 
@@ -56,7 +65,7 @@ export const loadBoundaries = async (area: Areas) => {
         .update(boundaries)
         .set({
           ...properties,
-          geometry: feature.value.geometry,
+          geometryWkt: stringify(feature.value.geometry as GeoJSONGeometry),
           updatedAt: new Date(),
         })
         .where(

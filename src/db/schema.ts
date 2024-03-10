@@ -66,7 +66,7 @@ export const boundaries = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
     exportedAt: timestamp('exported_at'),
-    geometry: jsonb('geometry'),
+    geometryWkt: varchar('geometry_wkt'),
   },
   (table) => {
     return {

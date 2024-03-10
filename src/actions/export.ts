@@ -11,6 +11,7 @@ import env from '@/utils/env';
 import { validateArea, type Areas } from '@/validation';
 import { and, eq, isNotNull, sql } from 'drizzle-orm';
 import PQueue from 'p-queue';
+import { parse } from 'wellknown';
 
 type Options = {
   signal?: AbortSignal;
@@ -28,7 +29,7 @@ export const exportBoundaries = async (area: Areas, options?: Options) => {
       and(
         eq(boundaries.area, area),
         eq(boundaries.sync, true),
-        isNotNull(boundaries.geometry),
+        isNotNull(boundaries.geometryWkt),
       ),
     );
 
@@ -88,19 +89,23 @@ export const exportBoundaries = async (area: Areas, options?: Options) => {
       `);
 
       if (rowCount === 1 && properties) {
-        const [{ geometry }] = await db
-          .select({ geometry: boundaries.geometry })
+        const [{ geometryWkt }] = await db
+          .select({ geometryWkt: boundaries.geometryWkt })
           .from(boundaries)
           .where(
             and(eq(boundaries.area, area), eq(boundaries.FID, boundary.FID)),
           );
+
+        if (!geometryWkt) {
+          return;
+        }
 
         await Bun.write(
           `data/${area}/${properties.code}.geojson`,
           JSON.stringify({
             type: 'Feature',
             properties,
-            geometry,
+            geometry: parse(geometryWkt),
           }),
         );
 

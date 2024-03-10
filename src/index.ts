@@ -24,7 +24,7 @@ program
     "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
-    await loadBoundaries(area);
+    await loadBoundaries(area, { signal: abortController.signal });
   });
 
 program
