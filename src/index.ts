@@ -63,8 +63,10 @@ try {
   await program.parseAsync();
   console.log('\nDone!');
 } catch (error) {
-  if (error instanceof Error && error.name !== 'CommanderError') {
-    console.error(`${error.name}: ${error.message}`);
+  if (error instanceof Error) {
+    if (error.name !== 'CommanderError') {
+      console.error(`${error.name}: ${error.message}`);
+    }
   } else {
     throw error;
   }

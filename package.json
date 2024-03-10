@@ -1,7 +1,14 @@
 {
   "name": "idn-area-boundary",
+  "version": "0.1.0",
   "module": "src/index.ts",
   "type": "module",
+  "author": "fityannugroho <fityannugroho@gmail.com> (https://github.com/fityannugroho)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fityannugroho/idn-area-boundary.git"
+  },
+  "homepage": "https://github.com/fityannugroho/idn-area-map#readme",
   "scripts": {
     "start": "NODE_ENV=production bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",

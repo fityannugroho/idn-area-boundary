@@ -58,10 +58,10 @@ bun start [options] [command]
 #   -h, --help             display help for command
 
 # Commands:
-#   load <area>            load boundaries from raw data to the database
-#   sync [options] <area>  sync boundaries from raw data with
-#                          idn-area-data
-#   generate <area>        generate boundaries of synced areas to geojson files
+#   load <area>            load boundaries from raw data to the database safely (will
+#                          update the data if it exists)
+#   sync [options] <area>  sync boundaries from raw data with idn-area-data
+#   export <area>          export synced boundaries into geojson files
 #   help [command]         display help for command
 ```
 
