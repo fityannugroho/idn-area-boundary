@@ -58,6 +58,7 @@ export const boundaries = pgTable(
     KECAMATAN: varchar('d_name'),
     KODE_KD: varchar('v_code'),
     NAME: varchar('v_name'),
+    KEL_DESA: varchar('v_name_2'),
     TIPE_KD: integer('v_type_num'),
     JENIS_KD: varchar('v_type'),
     sync: boolean('sync').notNull().default(false),

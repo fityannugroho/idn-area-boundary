@@ -39,6 +39,7 @@ export const loadBoundaries = async (area: Areas, options?: Options) => {
       KECAMATAN?: string;
       KODE_KD?: string;
       NAME?: string;
+      KEL_DESA?: string;
       TIPE_KD?: number;
       JENIS_KD?: string;
     };
@@ -72,7 +73,9 @@ export const loadBoundaries = async (area: Areas, options?: Options) => {
           and(eq(boundaries.area, area), eq(boundaries.FID, properties.FID)),
         );
 
-      console.log(`${area} ${properties.FID} updated`);
+      console.log(
+        `${new Date().toISOString()}: ${area} ${properties.FID} updated`,
+      );
     }
 
     feature = await shpSource.read();
