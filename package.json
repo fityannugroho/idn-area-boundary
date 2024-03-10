@@ -1,7 +1,14 @@
 {
   "name": "idn-area-boundary",
+  "version": "0.1.0",
   "module": "src/index.ts",
   "type": "module",
+  "author": "fityannugroho <fityannugroho@gmail.com> (https://github.com/fityannugroho)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fityannugroho/idn-area-boundary.git"
+  },
+  "homepage": "https://github.com/fityannugroho/idn-area-map#readme",
   "scripts": {
     "start": "NODE_ENV=production bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
@@ -24,6 +31,7 @@
     "@types/cli-progress": "^3.11.5",
     "@types/pg": "^8.11.2",
     "@types/shapefile": "^0.6.4",
+    "@types/wellknown": "^0.5.8",
     "drizzle-kit": "^0.20.14",
     "prettier": "^3.2.5"
   },
@@ -35,8 +43,10 @@
     "commander": "^12.0.0",
     "drizzle-orm": "^0.29.4",
     "idn-area-data": "^3.1.0",
+    "p-queue": "^8.0.1",
     "pg": "^8.11.3",
     "shapefile": "^0.6.6",
+    "wellknown": "^0.5.0",
     "zod": "^3.22.4",
     "zod-validation-error": "^3.0.3"
   }

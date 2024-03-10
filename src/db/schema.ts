@@ -1,6 +1,7 @@
 import {
   boolean,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   primaryKey,
@@ -57,12 +58,16 @@ export const boundaries = pgTable(
     KECAMATAN: varchar('d_name'),
     KODE_KD: varchar('v_code'),
     NAME: varchar('v_name'),
+    KEL_DESA: varchar('v_name_2'),
     TIPE_KD: integer('v_type_num'),
     JENIS_KD: varchar('v_type'),
     sync: boolean('sync').notNull().default(false),
     syncCode: varchar('sync_code'),
-    createdAt: timestamp('created_at').notNull().defaultNow(),
     syncedAt: timestamp('synced_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+    exportedAt: timestamp('exported_at'),
+    geometryWkt: varchar('geometry_wkt'),
   },
   (table) => {
     return {

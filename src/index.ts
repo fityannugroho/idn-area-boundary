@@ -2,8 +2,7 @@ import { Command } from 'commander';
 import { loadBoundaries } from './actions/load';
 import { type Areas } from './validation';
 import { syncBoundaries } from './actions/sync';
-import { generateBoundaries } from './actions/generate';
-import { error } from 'console';
+import { exportBoundaries } from './actions/export';
 
 const abortController = new AbortController();
 
@@ -18,14 +17,14 @@ program.name('idn-area-boundaries').description('Indonesia area boundaries');
 program
   .command('load')
   .description(
-    'load boundaries from raw data to the database. Note: this will remove the existing boundaries data including the synced status',
+    'load boundaries from raw data to the database safely (will update the data if it exists)',
   )
   .argument(
     '<area>',
     "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
-    await loadBoundaries(area);
+    await loadBoundaries(area, { signal: abortController.signal });
   });
 
 program
@@ -44,14 +43,14 @@ program
   });
 
 program
-  .command('generate')
-  .description('generate boundaries of synced areas to geojson files')
+  .command('export')
+  .description('export synced boundaries into geojson files')
   .argument(
     '<area>',
     "either 'provinces', 'regencies', 'districts', or 'villages'",
   )
   .action(async (area: Areas) => {
-    await generateBoundaries(area);
+    await exportBoundaries(area, { signal: abortController.signal });
   });
 
 program.hook('preAction', () => {
@@ -64,8 +63,10 @@ try {
   await program.parseAsync();
   console.log('\nDone!');
 } catch (error) {
-  if (error instanceof Error && error.name !== 'CommanderError') {
-    console.error(`${error.name}: ${error.message}`);
+  if (error instanceof Error) {
+    if (error.name !== 'CommanderError') {
+      console.error(`${error.name}: ${error.message}`);
+    }
   } else {
     throw error;
   }
