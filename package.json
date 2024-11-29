@@ -21,7 +21,8 @@
     "db:migrate": "bun src/db/migrate.ts",
     "db:seed": "bun src/db/seed.ts",
     "lint": "prettier --check 'src/**/*.{ts,js}'",
-    "lint:fix": "prettier --write 'src/**/*.{ts,js}'"
+    "lint:fix": "prettier --write 'src/**/*.{ts,js}'",
+    "serve": "bun src/server.ts"
   },
   "engines": {
     "node": ">=18"

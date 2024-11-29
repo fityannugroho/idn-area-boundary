@@ -10,7 +10,6 @@ The properties of the GeoJSON is also modified to be syncronized with the data f
 
 ## Prerequisite
 
-- [Node.js 18 or later](https://nodejs.org/en/download/)
 - [Bun v1.0 or later](https://bun.sh)
 - [PostgreSQL](https://www.postgresql.org/download/)
 
@@ -64,5 +63,19 @@ bun start [options] [command]
 #   export <area>          export synced boundaries into geojson files
 #   help [command]         display help for command
 ```
+
+## Serve the data
+
+This repository also provides a simple server to serve the data. You can run the server by running the following command:
+
+```sh
+bun serve
+```
+
+The server will be available at `http://localhost:3000`.
+
+You can specify the port by setting the `PORT` environment variable before running the command. Ensure that the port is not used by another service.
+
+Now you can access the data by sending a request to the server. For example, to get the boundary of a province with the code `32`, you can send a request to `http://localhost:3000/provinces/32.geojson`.
 
 [1]: https://github.com/Alf-Anas/batas-administrasi-indonesia
