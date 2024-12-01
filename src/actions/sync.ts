@@ -7,10 +7,8 @@ import {
   villages,
 } from '@/db/schema';
 import { initProgressBar } from '@/utils/cli';
-import env from '@/utils/env';
-import { validateArea, type Areas, validateSchema } from '@/validation';
-import { and, eq, ilike, or } from 'drizzle-orm';
-import PQueue from 'p-queue';
+import { validateArea, validateSchema, type Areas } from '@/validation';
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 
 const optionsSchema = z
@@ -26,204 +24,174 @@ type Options = z.infer<typeof optionsSchema> & {
   signal?: AbortSignal;
 };
 
-type Task = Parameters<InstanceType<typeof PQueue>['add']>[0];
-
 export const syncBoundaries = async (area: Areas, options?: Options) => {
   validateArea(area);
   validateSchema(optionsSchema, options);
 
-  // Reset sync states
-  if (options?.force) {
-    await db
-      .update(boundaries)
-      .set({ sync: false, syncCode: null, syncedAt: null })
-      .where(eq(boundaries.area, area));
-  }
+  const areaTables = {
+    provinces: provinces,
+    regencies: regencies,
+    districts: districts,
+    villages: villages,
+  } as const;
 
-  const unsyncAreas = await db
-    .select()
-    .from(boundaries)
-    .where(and(eq(boundaries.area, area), eq(boundaries.sync, false)));
+  //#region Syncing boundaries by code
+  const bAreaCode = {
+    provinces: boundaries.KODE_PROV,
+    regencies: boundaries.KODE_KK,
+    districts: boundaries.KODE_KEC,
+    villages: boundaries.KODE_KD,
+  } as const;
 
-  if (unsyncAreas.length === 0) {
-    console.log(`No ${area} boundaries to sync`);
+  process.stdout.write(`Syncing ${area} boundaries by code...`);
+
+  const selectTimeStart = performance.now();
+
+  const sqlSyncedCodes = sql`
+    SELECT ${areaTables[area].code}
+    FROM ${boundaries}
+    INNER JOIN ${areaTables[area]}
+      ON ${bAreaCode[area]} = ${areaTables[area].code}
+    WHERE
+      ${boundaries.area} = ${area}
+      AND ${bAreaCode[area]} IS NOT NULL
+      AND ${bAreaCode[area]} NOT LIKE '%-%'
+    GROUP BY ${areaTables[area].code}
+    HAVING COUNT(${areaTables[area].code}) = 1
+  `;
+
+  const syncedBoundsByCode = await db.execute<{
+    fid: string;
+    synced_code: string;
+  }>(sql`
+    SELECT ${boundaries.FID}, ${bAreaCode[area]} as synced_code
+    FROM ${boundaries}
+    WHERE
+      ${boundaries.area} = ${area}
+      AND ${bAreaCode[area]} IN (${sqlSyncedCodes})
+      ${options?.force ? sql`` : sql`AND ${boundaries.sync} = FALSE`}
+  `);
+
+  process.stdout.write(
+    ` [${(performance.now() - selectTimeStart).toFixed(2)}ms]\n`,
+  );
+
+  if (syncedBoundsByCode.rowCount === null) {
     return;
   }
 
-  console.log(
-    `${options?.force ? 'Force syncing' : 'Syncing'} ${unsyncAreas.length} ${area} boundaries`,
+  process.stdout.write(
+    `Updating ${syncedBoundsByCode.rowCount} boundaries...\n`,
   );
 
-  const queue = new PQueue({ concurrency: env.CONCURRENCY });
-  const progressBar = initProgressBar({ total: unsyncAreas.length });
-  let syncCount = 0;
+  const progressBar = initProgressBar({
+    total: syncedBoundsByCode.rowCount,
+  });
 
-  queue.on('completed', () => {
+  for (const { fid, synced_code } of syncedBoundsByCode.rows) {
+    if (options?.signal?.aborted) {
+      break;
+    }
+
+    await db.update(boundaries).set({
+      sync: true,
+      syncCode: synced_code,
+      syncedAt: new Date(),
+    }).where(sql`
+      ${boundaries.FID} = ${fid}
+      AND ${boundaries.area} = ${area}
+    `);
+
     progressBar.increment();
-  });
+  }
 
-  unsyncAreas.forEach((unsyncArea) => {
-    const task: Task = async ({ signal }) => {
-      if (signal?.aborted) {
-        return;
+  progressBar.stop();
+
+  if (options?.signal?.aborted) {
+    return;
+  }
+
+  //#region Syncing boundaries by name
+  const bAreaName = {
+    provinces: boundaries.PROVINSI,
+    regencies: boundaries.KAB_KOTA,
+    districts: boundaries.KECAMATAN,
+    villages: boundaries.NAME,
+  } as const;
+
+  process.stdout.write(`Syncing ${area} boundaries by name...`);
+
+  const selectByNameTimeStart = performance.now();
+
+  const sqlSyncedNames = sql`
+    SELECT ${bAreaName[area]}
+    FROM ${boundaries}
+    INNER JOIN ${areaTables[area]}
+      ON ${bAreaName[area]} = ${areaTables[area].name}
+    WHERE
+      ${boundaries.area} = ${area}
+      AND ${bAreaName[area]} IS NOT NULL
+    GROUP BY ${bAreaName[area]}
+    HAVING COUNT(${bAreaName[area]}) = 1
+  `;
+
+  const syncedBoundsByName = await db.execute<{
+    fid: string;
+    synced_code: string;
+  }>(sql`
+    SELECT ${boundaries.FID}, ${areaTables[area].code} as synced_code
+    FROM ${boundaries}
+    INNER JOIN ${areaTables[area]}
+      ON ${bAreaName[area]} = ${areaTables[area].name}
+    WHERE
+      ${boundaries.area} = ${area}
+      AND ${bAreaName[area]} IN (${sqlSyncedNames})
+      AND ${areaTables[area].code} NOT IN (${sqlSyncedCodes})
+      AND ${bAreaCode[area]} NOT LIKE '%-%'
+      ${
+        area === 'villages'
+          ? sql`AND (
+              ${boundaries.KODE_KK} = SUBSTRING(${areaTables[area].code}, 1, 5)
+              OR (
+                SUBSTRING(${boundaries.KODE_PROV}, 1, 1) = '9'
+                AND SUBSTRING(${areaTables[area].code}, 1, 1) = '9'
+              )
+            )`
+          : sql``
       }
+      ${options?.force ? sql`` : sql`AND ${boundaries.sync} = FALSE`}
+  `);
 
-      // Find the area data
-      let syncCode;
+  process.stdout.write(
+    ` [${(performance.now() - selectByNameTimeStart).toFixed(2)}ms]\n`,
+  );
 
-      switch (area) {
-        case 'provinces': {
-          const matchProvince = await db.query.provinces.findFirst({
-            where: (provinces, { ilike }) =>
-              ilike(provinces.name, `${unsyncArea.PROVINSI}%`),
-          });
+  if (syncedBoundsByName.rowCount === null) {
+    return;
+  }
 
-          if (matchProvince) {
-            syncCode = matchProvince.code;
-          }
+  process.stdout.write(
+    `Updating ${syncedBoundsByName.rowCount} boundaries...\n`,
+  );
 
-          break;
-        }
-        case 'regencies': {
-          const matchRegencies = await db
-            .select()
-            .from(regencies)
-            .innerJoin(provinces, eq(regencies.provinceCode, provinces.code))
-            .where(
-              or(
-                ilike(regencies.code, unsyncArea.KODE_KK as string),
-                and(
-                  ilike(provinces.name, `%${unsyncArea.PROVINSI}%`),
-                  ilike(regencies.name, `%${unsyncArea.KAB_KOTA}%`),
-                ),
-              ),
-            );
+  progressBar.start(syncedBoundsByName.rowCount, 0);
 
-          syncCode = (
-            matchRegencies.length > 1
-              ? matchRegencies.find(
-                  ({ regencies }) =>
-                    regencies.code === unsyncArea.KODE_KK ||
-                    regencies.name
-                      .toUpperCase()
-                      .endsWith((unsyncArea.KAB_KOTA as string).toUpperCase()),
-                )
-              : matchRegencies[0]
-          )?.regencies.code;
+  for (const { fid, synced_code } of syncedBoundsByName.rows) {
+    if (options?.signal?.aborted) {
+      break;
+    }
 
-          break;
-        }
-        case 'districts': {
-          const matchDistricts = await db
-            .select()
-            .from(districts)
-            .innerJoin(regencies, eq(districts.regencyCode, regencies.code))
-            .innerJoin(provinces, eq(regencies.provinceCode, provinces.code))
-            .where(
-              or(
-                ilike(districts.code, unsyncArea.KODE_KEC as string),
-                and(
-                  ilike(provinces.name, `%${unsyncArea.PROVINSI}%`),
-                  ilike(regencies.name, `%${unsyncArea.KAB_KOTA}%`),
-                  ilike(districts.name, `%${unsyncArea.KECAMATAN}%`),
-                ),
-              ),
-            );
+    await db.update(boundaries).set({
+      sync: true,
+      syncCode: synced_code,
+      syncedAt: new Date(),
+    }).where(sql`
+      ${boundaries.FID} = ${fid}
+      AND ${boundaries.area} = ${area}
+    `);
 
-          syncCode = (
-            matchDistricts.length > 1
-              ? matchDistricts.find(
-                  ({ districts }) => districts.code === unsyncArea.KODE_KEC,
-                ) ??
-                matchDistricts.find(
-                  ({ districts }) =>
-                    districts.name.toUpperCase() ===
-                    unsyncArea.KECAMATAN?.toUpperCase(),
-                )
-              : matchDistricts[0]
-          )?.districts.code;
+    progressBar.increment();
+  }
 
-          break;
-        }
-        case 'villages': {
-          const matchVillages = await db
-            .select()
-            .from(villages)
-            .innerJoin(districts, eq(villages.districtCode, districts.code))
-            .innerJoin(regencies, eq(districts.regencyCode, regencies.code))
-            .innerJoin(provinces, eq(regencies.provinceCode, provinces.code))
-            .where(
-              or(
-                ilike(villages.code, unsyncArea.KODE_KD as string),
-                and(
-                  ilike(provinces.name, `%${unsyncArea.PROVINSI}%`),
-                  ilike(regencies.name, `%${unsyncArea.KAB_KOTA}%`),
-                  ilike(districts.name, `%${unsyncArea.KECAMATAN}%`),
-                  ilike(villages.name, `%${unsyncArea.NAME}%`),
-                ),
-              ),
-            );
-
-          syncCode = (
-            matchVillages.length > 1
-              ? matchVillages.find(
-                  ({ villages }) => villages.code === unsyncArea.KODE_KD,
-                ) ??
-                matchVillages.find(
-                  ({ villages }) =>
-                    villages.name.toUpperCase() ===
-                    unsyncArea.NAME?.toUpperCase(),
-                )
-              : matchVillages[0]
-          )?.villages.code;
-
-          break;
-        }
-      }
-
-      if (!syncCode) {
-        return;
-      }
-
-      // Update the area data
-      await db
-        .update(boundaries)
-        .set({
-          sync: true,
-          syncCode: syncCode as string,
-          syncedAt: new Date(),
-        })
-        .where(
-          and(eq(boundaries.FID, unsyncArea.FID), eq(boundaries.area, area)),
-        );
-
-      syncCount += 1;
-    };
-
-    queue.add(task, { signal: options?.signal }).catch((error) => {
-      if (!(error instanceof DOMException)) {
-        throw error;
-      }
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    queue.on('idle', () => {
-      resolve();
-    });
-
-    queue.on('error', (error) => {
-      progressBar.stop();
-
-      // Aborted
-      if (error instanceof DOMException) {
-        resolve();
-      }
-
-      // Other errors
-      reject(error);
-    });
-  });
-
-  console.log(`Synced ${syncCount} ${area} boundaries`);
+  progressBar.stop();
 };
