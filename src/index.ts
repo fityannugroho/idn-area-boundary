@@ -3,10 +3,12 @@ import { loadBoundaries } from './actions/load';
 import { type Areas } from './validation';
 import { syncBoundaries } from './actions/sync';
 import { exportBoundaries } from './actions/export';
+import { compareBoundaries } from './actions/compare';
 
 const abortController = new AbortController();
 
 process.on('SIGINT', () => {
+  console.log('Aborting...');
   abortController.abort();
 });
 
@@ -53,6 +55,20 @@ program
     await exportBoundaries(area, { signal: abortController.signal });
   });
 
+program
+  .command('compare')
+  .description('compare the remote boundary with the local-extracted boundary')
+  .argument(
+    '<area>',
+    "either 'provinces', 'regencies', 'districts', or 'villages'",
+  )
+  .argument('<code>', 'the area code that you want to compare (e.g. 31)')
+  .action(async (area: Areas, code: string) => {
+    await compareBoundaries(area, code, {
+      signal: abortController.signal,
+    });
+  });
+
 program.hook('preAction', () => {
   console.log('Start... (press Ctrl+C to abort)\n');
 });
@@ -71,5 +87,3 @@ try {
     throw error;
   }
 }
-
-process.exit(0);

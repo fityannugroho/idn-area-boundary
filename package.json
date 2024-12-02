@@ -43,6 +43,7 @@
     "cli-progress": "^3.12.0",
     "commander": "^12.0.0",
     "drizzle-orm": "^0.30.8",
+    "fast-json-patch": "^3.1.1",
     "idn-area-data": "^3.1.0",
     "p-queue": "^8.0.1",
     "pg": "^8.11.3",
